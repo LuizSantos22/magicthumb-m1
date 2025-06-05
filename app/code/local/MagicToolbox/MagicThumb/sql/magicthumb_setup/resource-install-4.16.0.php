@@ -42,14 +42,14 @@ $connection->createTable($table);
 
 // Insert default settings row
 $connection->insert($tableName, [
-    'website_id' => null,
-    'group_id' => null,
-    'store_id' => null,
-    'package' => '',
-    'theme' => '',
-    'last_edit_time' => null,
+    'website_id' => new Zend_Db_Expr('NULL'),
+    'group_id'   => new Zend_Db_Expr('NULL'),
+    'store_id'   => new Zend_Db_Expr('NULL'),
+    'package'    => '',
+    'theme'      => '',
+    'last_edit_time' => new Zend_Db_Expr('NULL'),
     'custom_settings_title' => 'Edit Magic Thumb default settings',
-    'value' => $mtDefaultValuesSerialized,
+    'value'      => $mtDefaultValuesSerialized,
 ]);
 
 // Handle entity attribute
