@@ -11,33 +11,41 @@ $serializer = $paramsHelper->getSerializer();
 
 $oldModulesInstalled = $paramsHelper->checkForOldModules();
 
-if (!empty($oldModulesInstalled)) {
-    if ($connection->isTableExists($tableName)) {
-        $select = $connection->select()
-            ->from($tableName);
-        $rows = $connection->fetchAll($select);
+if (!empty($oldModulesInstalled) && $connection->isTableExists($tableName)) {
+    $rows = $connection->fetchAll(
+        $connection->select()->from($tableName)
+    );
 
-        foreach ($rows as $row) {
-            if (!empty($row['value'])) {
-                try {
-                    $settings = $serializer->unserialize($row['value']);
-                } catch (Exception $e) {
-                    Mage::logException($e);
-                    continue;
-                }
+    foreach ($rows as $row) {
+        if (!empty($row['value'])) {
+            try {
+                $settings = $serializer->unserialize($row['value']);
+            } catch (Exception $e) {
+                Mage::logException($e);
+                continue;
+            }
 
-                foreach ($settings as $platform => &$platformData) {
-                    foreach ($platformData as $profile => &$profileData) {
-                        foreach ($profileData as $param => &$value) {
-                            if (in_array($param, ['enable-effect', 'include-headers-on-all-pages'])) {
-                                $value = 'No';
+            if (is_array($settings)) {
+                foreach ($settings as $platform => $platformData) {
+                    if (!is_array($platformData)) continue;
+
+                    foreach ($platformData as $profile => $profileData) {
+                        if (!is_array($profileData)) continue;
+
+                        foreach ($profileData as $param => $value) {
+                            if (in_array($param, ['enable-effect', 'include-headers-on-all-pages'], true)) {
+                                $settings[$platform][$profile][$param] = 'No';
                             }
                         }
                     }
                 }
 
                 $newValue = $serializer->serialize($settings);
-                $connection->update($tableName, ['value' => $newValue], ['setting_id = ?' => $row['setting_id']]);
+                $connection->update(
+                    $tableName,
+                    ['value' => $newValue],
+                    ['setting_id = ?' => (int)$row['setting_id']]
+                );
             }
         }
     }
