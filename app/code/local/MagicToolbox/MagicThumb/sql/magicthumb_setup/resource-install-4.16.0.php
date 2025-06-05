@@ -1,41 +1,58 @@
 <?php
-
-/* @var $installer MagicToolbox_MagicThumb_Model_Resource_Setup */
+/** @var $installer MagicToolbox_MagicThumb_Model_Resource_Setup */
 $installer = $this;
-
 $installer->startSetup();
 
+$connection = $installer->getConnection();
+$tableName = $installer->getTable('magicthumb/settings');
+
 $paramsHelper = Mage::helper('magicthumb/params');
+
 $oldModulesInstalled = $paramsHelper->checkForOldModules();
-if (empty($oldModulesInstalled)) {
-    $mtDefaultValues = $paramsHelper->getDefaultValues();
-} else {
-    $mtDefaultValues = $paramsHelper->getFixedDefaultValues();
+$mtDefaultValues = empty($oldModulesInstalled)
+    ? $paramsHelper->getDefaultValues()
+    : $paramsHelper->getFixedDefaultValues();
+
+$mtDefaultValuesSerialized = $paramsHelper->getSerializer()->serialize($mtDefaultValues);
+
+// Drop old table if it exists
+if ($connection->isTableExists($tableName)) {
+    $connection->dropTable($tableName);
 }
 
-//NOTE: quotes need to be escaped
-$mtDefaultValues = $paramsHelper->getSerializer()->serialize($mtDefaultValues);
+// Create new table
+$table = $connection->newTable($tableName)
+    ->addColumn('setting_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, [
+        'identity' => true,
+        'nullable' => false,
+        'primary'  => true,
+        'unsigned' => true,
+    ], 'ID')
+    ->addColumn('website_id', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, ['nullable' => true], 'Website ID')
+    ->addColumn('group_id', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, ['nullable' => true], 'Group ID')
+    ->addColumn('store_id', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, ['nullable' => true], 'Store ID')
+    ->addColumn('package', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => false, 'default' => ''], 'Package')
+    ->addColumn('theme', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => false, 'default' => ''], 'Theme')
+    ->addColumn('last_edit_time', Varien_Db_Ddl_Table::TYPE_DATETIME, null, ['nullable' => true], 'Last Edit Time')
+    ->addColumn('custom_settings_title', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => false, 'default' => ''], 'Title')
+    ->addColumn('value', Varien_Db_Ddl_Table::TYPE_TEXT, '64k', ['nullable' => true], 'Serialized Value')
+    ->setComment('Magic Thumb Settings');
 
-$installer->run("
+$connection->createTable($table);
 
-DROP TABLE IF EXISTS `{$this->getTable('magicthumb/settings')}`;
-CREATE TABLE `{$this->getTable('magicthumb/settings')}` (
-    `setting_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-    `website_id` smallint(5) unsigned default NULL,
-    `group_id` smallint(5) unsigned default NULL,
-    `store_id` smallint(5) unsigned default NULL,
-    `package` varchar(255) NOT NULL default '',
-    `theme` varchar(255) NOT NULL default '',
-    `last_edit_time` datetime default NULL,
-    `custom_settings_title` varchar(255) NOT NULL default '',
-    `value` text,
-    PRIMARY KEY (`setting_id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8;
+// Insert default settings row
+$connection->insert($tableName, [
+    'website_id' => null,
+    'group_id' => null,
+    'store_id' => null,
+    'package' => '',
+    'theme' => '',
+    'last_edit_time' => null,
+    'custom_settings_title' => 'Edit Magic Thumb default settings',
+    'value' => $mtDefaultValuesSerialized,
+]);
 
-INSERT INTO `{$this->getTable('magicthumb/settings')}` (`setting_id`, `website_id`, `group_id`, `store_id`, `package`, `theme`, `last_edit_time`, `custom_settings_title`, `value`) VALUES (NULL, NULL, NULL, NULL, '', '', NULL, 'Edit Magic Thumb default settings', '{$mtDefaultValues}');
-
-");
-
+// Handle entity attribute
 $attribute = $installer->getAttribute('catalog_product', 'product_videos');
 if (!$attribute) {
     $installer->installEntities();
