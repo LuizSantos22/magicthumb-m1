@@ -5,7 +5,7 @@ $installer->startSetup();
 
 try {
     $attribute = $installer->getAttribute('catalog_product', 'product_videos');
-    if (!$attribute) {
+    if (!$attribute || !is_array($attribute)) {
         $installer->installEntities();
     }
 } catch (Exception $e) {
