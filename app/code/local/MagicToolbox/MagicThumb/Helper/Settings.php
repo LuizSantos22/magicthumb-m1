@@ -1,248 +1,241 @@
 <?php
+declare(strict_types=1);
 
 class MagicToolbox_MagicThumb_Helper_Settings extends Mage_Core_Helper_Abstract
 {
+    /** @var MagicThumbModuleCoreClass|null */
+    protected static $_toolCoreClass = null;
 
-    static protected $_toolCoreClass = null;
-    static protected $_scrollCoreClass = null;
-    static protected $_templates = array();
-    protected $_defaultTemplates = array();
+    /** @var MagicScrollModuleCoreClass|null */
+    protected static $_scrollCoreClass = null;
+
+    /** @var array<string, string> */
+    protected static $_templates = [];
+
+    /** @var array<string, string> */
+    protected $_defaultTemplates = [];
+
+    /** @var string */
     protected $_interface;
+
+    /** @var string */
     protected $_theme;
-    //protected $_skin;
 
     public function __construct()
     {
-
         $designPackage = Mage::getSingleton('core/design_package');
-        $this->_interface = $designPackage->getPackageName();
-        $this->_theme = $designPackage->getTheme('template');
-        //$this->_skin = $designPackage->getTheme('skin');
-        $this->_defaultTemplates = array(
-            'product.info.media' => 'catalog'.DS.'product'.DS.'view'.DS.'media.phtml',
-            'product_list' => 'catalog'.DS.'product'.DS.'list.phtml',
-            'search_result_list' => 'catalog'.DS.'product'.DS.'list.phtml',
-            'right.reports.product.viewed' => 'reports'.DS.'product_viewed.phtml',
-            'left.reports.product.viewed' => 'reports'.DS.'product_viewed.phtml',
-            'home.catalog.product.new' => 'catalog'.DS.'product'.DS.'new.phtml',
-        );
+        $this->_interface = (string) $designPackage->getPackageName();
+        $this->_theme = (string) $designPackage->getTheme('template');
 
+        $this->_defaultTemplates = [
+            'product.info.media' => 'catalog' . DS . 'product' . DS . 'view' . DS . 'media.phtml',
+            'product_list' => 'catalog' . DS . 'product' . DS . 'list.phtml',
+            'search_result_list' => 'catalog' . DS . 'product' . DS . 'list.phtml',
+            'right.reports.product.viewed' => 'reports' . DS . 'product_viewed.phtml',
+            'left.reports.product.viewed' => 'reports' . DS . 'product_viewed.phtml',
+            'home.catalog.product.new' => 'catalog' . DS . 'product' . DS . 'new.phtml',
+        ];
     }
 
-    public function getBlockTemplate($blockName, $template)
+    public function getBlockTemplate(string $blockName, string $template): string
     {
-        //NOTE: to save original template
         if (!isset(self::$_templates[$blockName])) {
             $block = Mage::app()->getLayout()->getBlock($blockName);
-            if ($block) {
-                self::$_templates[$blockName] = $block->getTemplate();
+            if ($block !== false && $block !== null) {
+                $blockTemplate = $block->getTemplate();
+                if (is_string($blockTemplate) && $blockTemplate !== '') {
+                    self::$_templates[$blockName] = $blockTemplate;
+                } else {
+                    self::$_templates[$blockName] = $template;
+                }
+            } else {
+                self::$_templates[$blockName] = $template;
             }
         }
-        return $template;
+        return self::$_templates[$blockName];
     }
 
-    public function setOriginalTemplate($blockName, $template)
+    public function setOriginalTemplate(string $blockName, string $template): void
     {
         self::$_templates[$blockName] = $template;
     }
 
-    public function getOriginalTemplate($blockName, $default = '')
+    public function getOriginalTemplate(string $blockName, string $default = ''): string
     {
-        return isset(self::$_templates[$blockName]) ? self::$_templates[$blockName] : $default;
+        return self::$_templates[$blockName] ?? $default;
     }
 
-    public function getTemplateFilename($blockName, $defaultTemplate = '')
+    public function getTemplateFilename(string $blockName, string $defaultTemplate = ''): string
     {
-        $template = isset(self::$_templates[$blockName]) ? self::$_templates[$blockName] :
-                    (isset($this->_defaultTemplates[$blockName]) ? $this->_defaultTemplates[$blockName] :
-                    $defaultTemplate);
-        return Mage::getSingleton('core/design_package')->getTemplateFilename($template);
+        $template = self::$_templates[$blockName]
+            ?? $this->_defaultTemplates[$blockName]
+            ?? $defaultTemplate;
+
+        // Mage::getSingleton returns object or throws, so no null expected
+        $designPackage = Mage::getSingleton('core/design_package');
+
+        try {
+            $filename = $designPackage->getTemplateFilename($template);
+        } catch (Exception $e) {
+            // fallback to default template name if exception
+            $filename = $template;
+        }
+
+        return (string) $filename;
     }
 
-    public function loadTool($_profile = '')
+    public function loadTool(string $_profile = ''): MagicThumbModuleCoreClass
     {
-
-        if (null === self::$_toolCoreClass) {
-
+        if (self::$_toolCoreClass === null) {
             $helper = Mage::helper('magicthumb/params');
 
             $coreClassPath = BP . str_replace('/', DS, '/app/code/local/MagicToolbox/MagicThumb/core/magicthumb.module.core.class.php');
+            if (!file_exists($coreClassPath)) {
+                throw new RuntimeException("MagicThumb core class file not found: $coreClassPath");
+            }
+
             require_once $coreClassPath;
+
             self::$_toolCoreClass = new MagicThumbModuleCoreClass();
 
-            /*
-            foreach ($helper->getDefaultValues() as $block => $params) {
-                foreach ($params as $id => $value) {
-                    self::$_toolCoreClass->params->setValue($id, $value, $block);
-                }
-            }
-            */
-
             $store = Mage::app()->getStore();
-            $websiteId = $store->getWebsiteId();
-            $groupId = $store->getGroupId();
-            $storeId = $store->getId();
+
+            $websiteId = (int)$store->getWebsiteId();
+            $groupId = (int)$store->getGroupId();
+            $storeId = (int)$store->getId();
 
             $designPackage = Mage::getSingleton('core/design_package');
-            $interface = $designPackage->getPackageName();
-            $theme = $designPackage->getTheme('template');
-
+            $interface = (string)$designPackage->getPackageName();
+            $theme = (string)$designPackage->getTheme('template');
 
             $model = Mage::getModel('magicthumb/settings');
-            $collection = $model->getCollection();
-            $zendDbSelect = $collection->getSelect();
-            $zendDbSelect->where('(website_id = ?) OR (website_id IS NULL)', $websiteId);
-            $zendDbSelect->where('(group_id = ?) OR (group_id IS NULL)', $groupId);
-            $zendDbSelect->where('(store_id = ?) OR (store_id IS NULL)', $storeId);
-            $zendDbSelect->where('(package = ?) OR (package = \'\')', $interface);
-            $zendDbSelect->where('(theme = ?) OR (theme = \'\')', $theme);
-            $zendDbSelect->order(array('theme DESC', 'package DESC', 'store_id DESC', 'group_id DESC', 'website_id DESC'));
+            $collection = $model ? $model->getCollection() : null;
+            if ($collection === null) {
+                throw new RuntimeException('Could not get MagicThumb settings collection');
+            }
 
-            $settings = $collection->getFirstItem()->getValue();
-            if (!empty($settings)) {
-                $settings = $this->getSerializer()->unserialize($settings);
-                if (isset($settings['desktop'])) {
-                    foreach ($settings['desktop'] as $profile => $params) {
-                        foreach ($params  as $id => $value) {
-                            self::$_toolCoreClass->params->setValue($id, $value, $profile);
-                        }
-                    }
-                }
-                if (isset($settings['mobile'])) {
-                    foreach ($settings['mobile'] as $profile => $params) {
-                        foreach ($params  as $id => $value) {
-                            self::$_toolCoreClass->params->setMobileValue($id, $value, $profile);
+            $select = $collection->getSelect();
+            $select->where('(website_id = ?) OR (website_id IS NULL)', $websiteId);
+            $select->where('(group_id = ?) OR (group_id IS NULL)', $groupId);
+            $select->where('(store_id = ?) OR (store_id IS NULL)', $storeId);
+            $select->where('(package = ?) OR (package = \'\')', $interface);
+            $select->where('(theme = ?) OR (theme = \'\')', $theme);
+            $select->order(['theme DESC', 'package DESC', 'store_id DESC', 'group_id DESC', 'website_id DESC']);
+
+            $settingsRaw = $collection->getFirstItem()->getValue();
+            if (is_string($settingsRaw) && $settingsRaw !== '') {
+                $settings = $this->safeUnserialize($settingsRaw);
+                if (is_array($settings)) {
+                    foreach (['desktop', 'mobile'] as $device) {
+                        if (!empty($settings[$device]) && is_array($settings[$device])) {
+                            foreach ($settings[$device] as $profile => $params) {
+                                if (!is_array($params)) {
+                                    continue;
+                                }
+                                foreach ($params as $id => $value) {
+                                    if ($device === 'mobile') {
+                                        self::$_toolCoreClass->params->setMobileValue($id, $value, $profile);
+                                    } else {
+                                        self::$_toolCoreClass->params->setValue($id, $value, $profile);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
             foreach ($helper->getProfiles() as $id => $label) {
-                /* load locale */
-                $locale = $this->__('MagicThumb_LoadingMessage');
-                if ($locale != 'MagicThumb_LoadingMessage') {
-                    self::$_toolCoreClass->params->setValue('loading-msg', $locale, $id);
+                $loadingMsg = $this->__('MagicThumb_LoadingMessage');
+                if ($loadingMsg !== 'MagicThumb_LoadingMessage') {
+                    self::$_toolCoreClass->params->setValue('loading-msg', $loadingMsg, $id);
                 }
-                $locale = $this->__('MagicThumb_Message');
-                if ($locale != 'MagicThumb_Message') {
-                    self::$_toolCoreClass->params->setValue('message', $locale, $id);
+                $msg = $this->__('MagicThumb_Message');
+                if ($msg !== 'MagicThumb_Message') {
+                    self::$_toolCoreClass->params->setValue('message', $msg, $id);
                 }
             }
 
             $loadScroll = false;
-            $layout = Mage::app()->getLayout();//Mage_Core_Model_Layout
+            $layout = Mage::app()->getLayout();
             if ($layout) {
-                $headerBlock = $layout->getBlock('magicthumb_header');//MagicToolbox_MagicThumb_Block_Header
-                if ($headerBlock) {
-                    $loadScroll = ($headerBlock->getPageType() == 'product');
+                $headerBlock = $layout->getBlock('magicthumb_header');
+                if ($headerBlock && method_exists($headerBlock, 'getPageType')) {
+                    $loadScroll = ($headerBlock->getPageType() === 'product');
                 }
-
             }
+
             if ($loadScroll && self::$_toolCoreClass->params->checkValue('magicscroll', 'yes', 'product')) {
-                require_once(BP . str_replace('/', DS, '/app/code/local/MagicToolbox/MagicThumb/core/magicscroll.module.core.class.php'));
-                self::$_scrollCoreClass = new MagicScrollModuleCoreClass(false);
-                //NOTE: load params in a separate profile, in order not to overwrite the options of MagicScroll module
-                self::$_scrollCoreClass->params->appendParams(self::$_toolCoreClass->params->getParams('product'), 'product-magicscroll-options');
-                self::$_scrollCoreClass->params->setValue('orientation', (self::$_toolCoreClass->params->checkValue('template', array('left', 'right'), 'product') ? 'vertical' : 'horizontal'), 'product-magicscroll-options');
-                //NOTE: if Magic Scroll module installed we need to load settings before displaying custom options
-                if (Mage::getConfig()->getHelperClassName('magicscroll/settings') == 'MagicToolbox_MagicScroll_Helper_Settings') {
-                    $magicscrollHelper = Mage::helper('magicscroll/settings');
-                    $magicscrollHelper->loadTool();
-                }
+                $scrollClassPath = BP . str_replace('/', DS, '/app/code/local/MagicToolbox/MagicThumb/core/magicscroll.module.core.class.php');
+                if (file_exists($scrollClassPath)) {
+                    require_once $scrollClassPath;
+                    self::$_scrollCoreClass = new MagicScrollModuleCoreClass(false);
+                    self::$_scrollCoreClass->params->appendParams(
+                        self::$_toolCoreClass->params->getParams('product'),
+                        'product-magicscroll-options'
+                    );
+                    $orientation = self::$_toolCoreClass->params->checkValue('template', ['left', 'right'], 'product') ? 'vertical' : 'horizontal';
+                    self::$_scrollCoreClass->params->setValue('orientation', $orientation, 'product-magicscroll-options');
 
+                    $helperClassName = Mage::getConfig()->getHelperClassName('magicscroll/settings');
+                    if ($helperClassName === 'MagicToolbox_MagicScroll_Helper_Settings') {
+                        Mage::helper('magicscroll/settings')->loadTool();
+                    }
+                }
             }
-            require_once(BP . str_replace('/', DS, '/app/code/local/MagicToolbox/MagicThumb/core/magictoolbox.templatehelper.class.php'));
-            //MagicToolboxTemplateHelperClass::setPath(dirname(Mage::getSingleton('core/design_package')->getTemplateFilename('magicthumb'.DS.'media.phtml')) . DS . 'templates');
-            MagicToolboxTemplateHelperClass::setPath(
-                dirname(
-                    Mage::getSingleton('core/design_package')->getTemplateFilename(
-                        'magicthumb'.DS.'templates'.DS.preg_replace('/[^a-zA-Z0-9_]/is', '-', self::$_toolCoreClass->params->getValue('template', 'product')).'.tpl.phtml'
+
+            $templateHelperClassPath = BP . str_replace('/', DS, '/app/code/local/MagicToolbox/MagicThumb/core/magictoolbox.templatehelper.class.php');
+            if (file_exists($templateHelperClassPath)) {
+                require_once $templateHelperClassPath;
+                MagicToolboxTemplateHelperClass::setPath(
+                    dirname(
+                        Mage::getSingleton('core/design_package')->getTemplateFilename(
+                            'magicthumb' . DS . 'templates' . DS . preg_replace('/[^a-zA-Z0-9_]/', '-', self::$_toolCoreClass->params->getValue('template', 'product')) . '.tpl.phtml'
+                        )
                     )
-                )
-            );
-            MagicToolboxTemplateHelperClass::setOptions(self::$_toolCoreClass->params);
-            MagicToolboxTemplateHelperClass::setExtension('phtml');
+                );
+                MagicToolboxTemplateHelperClass::setOptions(self::$_toolCoreClass->params);
+                MagicToolboxTemplateHelperClass::setExtension('phtml');
+            }
         }
 
-        if ($_profile) {
+        if ($_profile !== '') {
             self::$_toolCoreClass->params->setProfile($_profile);
         }
 
         return self::$_toolCoreClass;
     }
 
-    public function loadScroll()
+    public function loadScroll(): ?MagicScrollModuleCoreClass
     {
         return self::$_scrollCoreClass;
     }
 
-    public function magicToolboxGetSizes($sizeType, $originalSizes = null)
+    /**
+     * Safe unserialize wrapper
+     *
+     * @param string $data
+     * @return mixed|null
+     */
+    protected function safeUnserialize(string $data)
     {
-
-        $w = self::$_toolCoreClass->params->getValue($sizeType.'-max-width');
-        $h = self::$_toolCoreClass->params->getValue($sizeType.'-max-height');
-        if (empty($w)) $w = 0;
-        if (empty($h)) $h = 0;
-        if (self::$_toolCoreClass->params->checkValue('square-images', 'No')) {
-            //NOTE: fix for bad images
-            if (empty($originalSizes[0]) || empty($originalSizes[1])) {
-                return array($w, $h);
-            }
-            list($w, $h) = self::calculateSize($originalSizes[0], $originalSizes[1], $w, $h);
-        } else {
-            $h = $w = $h ? ($w ? min($w, $h) : $h) : $w;
+        if ($data === '') {
+            return null;
         }
-        return array($w, $h);
-    }
 
-    protected function calculateSize($originalW, $originalH, $maxW = 0, $maxH = 0)
-    {
-        if (!$maxW && !$maxH) {
-            return array($originalW, $originalH);
-        } else if (!$maxW) {
-            $maxW = ($maxH * $originalW) / $originalH;
-        } else if (!$maxH) {
-            $maxH = ($maxW * $originalH) / $originalW;
-        }
-        $sizeDepends = $originalW/$originalH;
-        $placeHolderDepends = $maxW/$maxH;
-        if ($sizeDepends > $placeHolderDepends) {
-            $newW = $maxW;
-            $newH = $originalH * ($maxW / $originalW);
-        } else {
-            $newW = $originalW * ($maxH / $originalH);
-            $newH = $maxH;
-        }
-        return array(round($newW), round($newH));
-    }
-
-    public function isModuleOutputEnabled($moduleName = null)
-    {
-
-        if ($moduleName === null) {
-            $moduleName = 'MagicToolbox_MagicThumb';//$this->_getModuleName();
-        }
-        if (method_exists('Mage_Core_Helper_Abstract', 'isModuleOutputEnabled')) {
-            return parent::isModuleOutputEnabled($moduleName);
-        }
-        //if (!$this->isModuleEnabled($moduleName)) {
-        //    return false;
-        //}
-        if (Mage::getStoreConfigFlag('advanced/modules_disable_output/' . $moduleName)) {
-            return false;
-        }
-        return true;
-    }
-
-    public function getSerializer() {
-        static $serializer = null;
-
-        if ($serializer === null) {
-            if (class_exists('Zend_Serializer') && class_exists('Zend_Serializer_Adapter_PhpSerialize')) {
-                $serializer = new Zend_Serializer;
+        if (class_exists(\Zend_Serializer::class)) {
+            try {
+                return \Zend_Serializer::unserialize($data);
+            } catch (Exception $e) {
+                // ignore, fallback
             }
         }
 
-        return $serializer;
+        try {
+            $result = @unserialize($data);
+            return $result === false && $data !== serialize(false) ? null : $result;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 }
