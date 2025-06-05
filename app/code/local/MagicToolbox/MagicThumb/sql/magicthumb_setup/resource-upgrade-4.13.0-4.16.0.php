@@ -1,14 +1,15 @@
 <?php
-
-/* @var $installer MagicToolbox_MagicThumb_Model_Resource_Setup */
+/** @var $installer MagicToolbox_MagicThumb_Model_Resource_Setup */
 $installer = $this;
-
 $installer->startSetup();
 
-
-$attribute = $installer->getAttribute('catalog_product', 'product_videos');
-if (!$attribute) {
-    $installer->installEntities();
+try {
+    $attribute = $installer->getAttribute('catalog_product', 'product_videos');
+    if (!$attribute) {
+        $installer->installEntities();
+    }
+} catch (Exception $e) {
+    Mage::logException($e); // log exception if attribute retrieval fails
 }
 
 $installer->endSetup();
