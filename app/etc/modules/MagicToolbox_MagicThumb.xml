@@ -4,6 +4,10 @@
         <MagicToolbox_MagicThumb>
             <active>true</active>
             <codePool>local</codePool>
+            <depends>
+                <Mage_Catalog />
+            </depends>
         </MagicToolbox_MagicThumb>
     </modules>
 </config>
+
